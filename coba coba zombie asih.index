@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="jv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zombie Quiz Defense - Level Up Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Nosifer&family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Poppins', sans-serif; overflow: hidden; background-color: #0a0a0a; color: white; margin: 0; }
+        .font-horror { font-family: 'Creepster', system-ui; }
+        .font-title { font-family: 'Nosifer', cursive; }
+        canvas { display: block; touch-action: none; }
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            50% { transform: translate(-1px, 2px) rotate(1deg); }
+            100% { transform: translate(1px, -2px) rotate(0deg); }
+        }
+        .btn-horror {
+            background: linear-gradient(to bottom, #8b0000, #4a0000);
+            border: 2px solid #ff0000;
+            box-shadow: 0 4px 0 #2a0000;
+            transition: all 0.1s;
+            cursor: pointer;
+        }
+        .btn-horror:hover { filter: brightness(1.2); }
+        .btn-horror:active { transform: translateY(4px); box-shadow: none; }
+        #game-ui { pointer-events: none; }
+        #game-ui button { pointer-events: auto; }
+        .level-up-anim { animation: zoomIn 1s ease-out forwards; }
+        @keyframes zoomIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="splash" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black transition-opacity duration-1000">
+        <h2 class="font-horror text-4xl text-red-600 animate-pulse">Karya:</h2>
+        <h1 class="font-title text-5xl text-white mt-4">Asih Fatimah</h1>
+    </div>
+
+    <div id="menu" class="hidden fixed inset-0 z-40 flex flex-col items-center justify-center bg-gray-900">
+        <h1 class="font-title text-4xl md:text-6xl text-red-700 mb-8 text-center leading-tight">ZOMBIE QUIZ<br>BASA JAWA</h1>
+        <div class="flex flex-col gap-4 w-64 px-4">
+            <button onclick="setupGame('solo')" class="btn-horror py-3 rounded-lg font-horror text-2xl tracking-widest">MULAI MAIN</button>
+            <button onclick="toggleFullScreen()" class="bg-gray-800 p-2 rounded text-[10px] opacity-50 uppercase font-bold">Layar Penuh</button>
+        </div>
+    </div>
+
+    <div id="game-container" class="hidden fixed inset-0">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="level-notify" class="fixed inset-0 flex items-center justify-center pointer-events-none hidden">
+            <h2 class="font-title text-6xl text-yellow-500 level-up-anim">LEVEL UP!</h2>
+        </div>
+
+        <div id="game-ui" class="fixed inset-0 flex flex-col justify-between p-4">
+            <div class="flex justify-between items-center bg-black/40 p-3 rounded-lg backdrop-blur-sm">
+                <div>
+                    <p class="text-[10px] font-bold text-green-400 uppercase">Pemain</p>
+                    <p class="text-xl font-horror">HP: <span id="p1-hp" class="text-red-500">3</span></p>
+                </div>
+                <div class="text-center">
+                    <p class="text-[10px] font-bold text-yellow-400 uppercase tracking-widest">Level</p>
+                    <p id="current-level" class="text-3xl font-horror text-yellow-500">1</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] font-bold text-blue-400 uppercase">Skor</p>
+                    <p id="p1-score" class="text-xl font-horror text-white">0</p>
+                </div>
+            </div>
+
+            <div id="quiz-area" class="flex flex-col items-center gap-4 mb-6">
+                <div class="bg-black/90 border-2 border-red-700 p-5 rounded-2xl max-w-2xl w-full text-center shadow-[0_0_20px_rgba(185,28,28,0.5)]">
+                    <p id="current-question" class="text-lg md:text-2xl font-bold text-white leading-relaxed"></p>
+                </div>
+                <div id="answer-grid" class="grid grid-cols-2 gap-3 w-full max-w-2xl"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95">
+        <h1 class="font-title text-6xl text-red-600 mb-2">MODAR!</h1>
+        <p class="text-gray-400 mb-6 font-horror text-2xl">Level sing kacepengan: <span id="final-level" class="text-yellow-500">1</span></p>
+        <div id="final-stats" class="text-3xl font-horror mb-10 text-white"></div>
+        <button onclick="location.reload()" class="btn-horror py-4 px-12 rounded-full font-horror text-3xl">BALENI MANEH</button>
+    </div>
+
+    <script>
+        const SOAL_DATA = [
+            { q: "Tembang macapat kang nggambarake bayi isih ana ing kandungan yaiku...", a: "Maskumambang", opts: ["Maskumambang", "Mijil", "Sinom", "Pangkur"] },
+            { q: "Tembang Pocung iku duweni paugeran guru gatra cacah...", a: "4", opts: ["4", "5", "6", "7"] },
+            { q: "Raden Arjuna iku satriya ing...", a: "Madukara", opts: ["Madukara", "Jodhipati", "Sawojajar", "Pringgadani"] },
+            { q: "Puntadewa iku pembarepe...", a: "Pandhawa", opts: ["Pandhawa", "Kurawa", "Punakawan", "Sata Kurawa"] },
+            { q: "Gamane Raden Gathotkaca yaiku...", a: "Kotak Ontakusuma", opts: ["Kotak Ontakusuma", "Gada Rujakpolo", "Panah Pasopati", "Cakra"] },
+            { q: "Basa krama aluse 'Mangan' yaiku...", a: "Dhahar", opts: ["Dhahar", "Nedha", "Mbadhog", "Nguyuh"] },
+            { q: "Sapa sing dadi bapake Pandhawa?", a: "Prabu Pandu", opts: ["Prabu Pandu", "Prabu Destarastra", "Resi Bhisma", "Prabu Kresna"] },
+            { q: "Tembang Durma duweni watak...", a: "Galak", opts: ["Galak", "Sedih", "Seneng", "Tresna"] },
+            { q: "Aksara Jawa 'Ha' cacahe ana...", a: "20", opts: ["20", "18", "22", "25"] },
+            { q: "Wayang kang digawe saka kayu diarani wayang...", a: "Golek", opts: ["Golek", "Purwa", "Beber", "Suket"] }
+        ];
+
+        const sfx = {
+            bgm: new Audio('https://raw.githubusercontent.com/polybuildr/tower-defense-assets/master/sfx/bgm.mp3'),
+            shoot: new Audio('https://raw.githubusercontent.com/polybuildr/tower-defense-assets/master/sfx/shoot.mp3'),
+            hurt: new Audio('https://raw.githubusercontent.com/polybuildr/tower-defense-assets/master/sfx/hurt.mp3'),
+            death: new Audio('https://raw.githubusercontent.com/polybuildr/tower-defense-assets/master/sfx/enemy-death.mp3')
+        };
+        sfx.bgm.loop = true;
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let gameState = 'SPLASH';
+        let level = 1;
+        let score = 0;
+        let hp = 3;
+        let zombies = [];
+        let spawnTimer = 0;
+        let currentQuestion = null;
+
+        class Zombie {
+            constructor() {
+                this.x = (Math.random() * (canvas.width - 100)) + 50;
+                this.y = -60;
+                // Level-based speed
+                this.speed = 0.8 + (level * 0.3);
+                this.size = 60;
+                this.emoji = "🧟";
+            }
+            update() {
+                this.y += this.speed;
+                if (this.y > canvas.height - 180) {
+                    hp--;
+                    sfx.hurt.play();
+                    document.body.classList.add('shake');
+                    setTimeout(() => document.body.classList.remove('shake'), 500);
+                    return true; // damage dealt
+                }
+                return false;
+            }
+            draw() {
+                ctx.font = `${this.size}px serif`;
+                ctx.textAlign = "center";
+                ctx.fillText(this.emoji, this.x, this.y);
+            }
+        }
+
+        function init() {
+            window.addEventListener('resize', resize);
+            resize();
+            setTimeout(() => {
+                document.getElementById('splash').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('splash').style.display = 'none';
+                    document.getElementById('menu').style.display = 'flex';
+                }, 1000);
+            }, 3000);
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        function setupGame() {
+            gameState = 'PLAYING';
+            hp = 3; score = 0; level = 1;
+            zombies = [];
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            sfx.bgm.play().catch(() => {});
+            updateHUD();
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            currentQuestion = SOAL_DATA[Math.floor(Math.random() * SOAL_DATA.length)];
+            document.getElementById('current-question').innerText = currentQuestion.q;
+            const grid = document.getElementById('answer-grid');
+            grid.innerHTML = '';
+            [...currentQuestion.opts].sort(() => Math.random() - 0.5).forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = "btn-horror p-4 rounded-xl text-sm font-bold text-white shadow-lg";
+                btn.innerText = opt;
+                btn.onclick = () => checkAnswer(opt);
+                grid.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(ans) {
+            if (ans === currentQuestion.a) {
+                sfx.shoot.play();
+                if (zombies.length > 0) {
+                    zombies.shift();
+                    sfx.death.play();
+                    score += 10;
+                    checkLevelUp();
+                }
+                nextQuestion();
+            } else {
+                score = Math.max(0, score - 5);
+                document.body.classList.add('shake');
+                setTimeout(() => document.body.classList.remove('shake'), 300);
+            }
+            updateHUD();
+        }
+
+        function checkLevelUp() {
+            // Level up every 50 points
+            let newLevel = Math.floor(score / 50) + 1;
+            if (newLevel > level) {
+                level = newLevel;
+                showLevelUpNotify();
+            }
+        }
+
+        function showLevelUpNotify() {
+            const notify = document.getElementById('level-notify');
+            notify.classList.remove('hidden');
+            setTimeout(() => notify.classList.add('hidden'), 1000);
+        }
+
+        function updateHUD() {
+            document.getElementById('p1-hp').innerText = hp;
+            document.getElementById('p1-score').innerText = score;
+            document.getElementById('current-level').innerText = level;
+            if (hp <= 0) gameOver();
+        }
+
+        function gameOver() {
+            gameState = 'OVER';
+            document.getElementById('game-container').style.display = 'none';
+            document.getElementById('game-over').style.display = 'flex';
+            document.getElementById('final-stats').innerText = `Total Skor: ${score}`;
+            document.getElementById('final-level').innerText = level;
+            sfx.bgm.pause();
+        }
+
+        function gameLoop() {
+            if (gameState === 'PLAYING') {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Spawn rate increases with level
+                let spawnRate = Math.max(40, 120 - (level * 10));
+                spawnTimer++;
+                if (spawnTimer > spawnRate) {
+                    zombies.push(new Zombie());
+                    spawnTimer = 0;
+                }
+
+                for (let i = zombies.length - 1; i >= 0; i--) {
+                    if (zombies[i].update()) {
+                        zombies.splice(i, 1);
+                        updateHUD();
+                    } else {
+                        zombies[i].draw();
+                    }
+                }
+            }
+            requestAnimationFrame(gameLoop);
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else document.exitFullscreen();
+        }
+
+        init();
+    </script>
+</body>
+</html>
